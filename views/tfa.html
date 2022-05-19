@@ -1,0 +1,50 @@
+<html lang="en">
+  <!--
+    Created by: Javier Díaz on 19/04/22.
+    https://github.com/CaraTortu/Chats!
+-->
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Email Confirmation</title>
+</head>
+
+<body>
+  <img src='' id="tfa_image" />
+  <p id="scan"></p>
+  <input type="text" id="tfa_code" placeholder="Enter the code 2fa">
+  <button id="tfa_confirm" onclick="checktfa();">Confirm</button>
+
+  <script src="/static/js/jquery-3.6.0.min.js" type="text/javascript"></script>
+  <script>
+    $.ajax({
+      url: '/api/tfaimage',
+      type: 'POST',
+      data: JSON.stringify({}),
+      success: function(data) {
+        if (data != false) {
+            $('#tfa_image').attr('src', data);
+            $('#scan').html('Scan the QR code with your authenticator app!');
+        }
+    }
+    });
+    function checktfa() {
+      $.ajax({
+          url: '/api/tfacode',
+          type: 'POST',
+          data: JSON.stringify({
+              code: $('#tfa_code').val()
+          }),
+          success: function(data) {
+              if (data == 'success') {
+                  window.location.href = '/dashboard';
+              } else {
+                  alert(data);
+              }
+          }
+      });
+    }
+  </script>
+</body>
+
+</html>

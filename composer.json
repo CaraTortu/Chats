@@ -1,0 +1,6 @@
+{
+    "require": {
+        "phpmailer/phpmailer": "^6.6",
+        "robthree/twofactorauth": "^1.8"
+    }
+}
