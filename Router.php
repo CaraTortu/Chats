@@ -110,7 +110,6 @@ class UrlHandler
                     // User is logged in.
                     $_SESSION['tmp_user'] = $username;
                     return $r;
-
                 } else {
                     // Method is not POST.
                     return $this->returnAPIError(405);
@@ -154,9 +153,9 @@ class UrlHandler
             
             case 'tfacode':
                 if ($method == 'POST') {
-                    $code = $params['code'];    
+                    $code = $params['code'];
                     if ($code == "") {
-                        // Username is empty.
+                        // Code is empty.
                         return "Please supply all parameters";
                     }
                     if (!isset($_SESSION['tmp_user'])) {
@@ -221,13 +220,14 @@ class UrlHandler
                 $f = str_replace("{{token}}", $this->urlParams['token'], $f);
                 return $f;
             case '/tfa':
-                if (isset($_SESSION['tmp_user'])){
+                if (isset($_SESSION['tmp_user'])) {
                     $f = file_get_contents("views/tfa.html");
                     $f = str_replace("{{user}}", $_SESSION['tmp_user'], $f);
                     return $f;
                 } else {
                     return $this->returnError(401);
                 }
+                // no break
             default:
                 // Return 404 for all other requests.
                 return $this->returnError(404);

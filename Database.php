@@ -5,6 +5,7 @@
 */
 
 namespace Chat;
+
 use PDO;
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -36,32 +37,15 @@ class Database
     // Adds a user to the database. (sign up)
     public function addUser($username, $password, $email)
     {
-        // Checks password length.
-        if (strlen($password) < 8) {
-            return "Password must be at least 8 characters long.";
-        }
-        // Check numbers in password.
-        if (!preg_match("#[0-9]+#", $password)) {
-            return "Password must contain at least one number.";
-        }
-        // Check uppercase letters in password.
-        if (!preg_match("#[A-Z]+#", $password)) {
-            return "Password must contain at least one uppercase letter.";
-        }
-        // Check lowercase letters in password.
-        if (!preg_match("#[a-z]+#", $password)) {
-            return "Password must contain at least one lowercase letter.";
-        }
-        // Check symbols in password
-        if (!preg_match('/[-!$%^&*()_+|~=`{}\[\]:";\'<>?,.\/]/', $password)) {
-            return "Password must contain at least one symbol.";
+       
+        // Checks if password meets requirements.
+        $r = $this->verifyPassword($password);
+        if (!$r[0]) {
+            return $r[1];
         }
 
         // Check if username is taken.
-        $r = $this->db->prepare("SELECT id FROM users WHERE username = :user;");
-        $r->bindParam(':user', $username, PDO::PARAM_STR);
-        $r->execute();
-        if (count($r->fetchAll(PDO::FETCH_ASSOC)) != 0) {
+        if ($this->UserExists($username)) {
             return "Username is taken";
         }
         
@@ -90,12 +74,8 @@ class Database
             return "Error adding user";
         }
         
-        
         // Verifies that it was added correctly
-        $r = $this->db->prepare("SELECT id FROM users WHERE username = :user;");
-        $r->bindParam(':user', $username, PDO::PARAM_STR);
-        $r->execute();
-        if (count($r->fetchAll(PDO::FETCH_ASSOC)) == 0) {
+        if (!$this->UserExists($username)) {
             return "Something went wrong, try again";
         }
 
@@ -122,6 +102,47 @@ class Database
         }
 
         return "success";
+    }
+
+    // Verifies if the password meets the requirements.
+    public function verifyPassword($password)
+    {
+        // Checks password length.
+        if (strlen($password) < 8) {
+            return [false, "Password must be at least 8 characters long."];
+        }
+        // Check numbers in password.
+        if (!preg_match("#[0-9]+#", $password)) {
+            return [false, "Password must contain at least one number."];
+        }
+        // Check uppercase letters in password.
+        if (!preg_match("#[A-Z]+#", $password)) {
+            return [false, "Password must contain at least one uppercase letter."];
+        }
+        // Check lowercase letters in password.
+        if (!preg_match("#[a-z]+#", $password)) {
+            return [false, "Password must contain at least one lowercase letter."];
+        }
+        // Check symbols in password
+        if (!preg_match('/[-!$%^&*()_+|~=`{}\[\]:";\'<>?,.\/]/', $password)) {
+            return [false, "Password must contain at least one symbol."];
+        }
+
+        return [true];
+    }
+
+    // Check if user exists in the database.
+    public function UserExists($username)
+    {
+        $exec = $this->db->prepare("SELECT id FROM users WHERE username = :user;");
+        $exec->bindParam(':user', $username, PDO::PARAM_STR);
+        $exec->execute();
+        $r = $exec->fetchAll(PDO::FETCH_ASSOC);
+        if (count($r) == 0) {
+            return false;
+        }
+
+        return true;
     }
 
     // Checks if the user is verified.
@@ -178,7 +199,7 @@ class Database
 
             if ($config->smtp_auth) {
                 //Enable SMTP authentication
-                $mail->SMTPAuth = true;                         
+                $mail->SMTPAuth = true;
                 $mail->Username = $config->smtp_username;  // SMTP username
                 $mail->Password = $config->smtp_password;  // SMTP password
             } else {
@@ -203,13 +224,12 @@ class Database
             if ($config->smtp_ssl === true && $config->smtp_tls === false) {
                 //Enable SSL encryption
                 $mail->SMTPSecure = "ssl";
-
             } elseif ($config->smtp_ssl === false && $config->smtp_tls === true) {
                 //Enable TLS encryption.
                 $mail->SMTPSecure = "tls";
             }
 
-            if ($config->smtp_ehlo !== ""){
+            if ($config->smtp_ehlo !== "") {
                 //Set the SMTP HELO of the message
                 $mail->Helo = $config->smtp_ehlo;
             }
@@ -235,11 +255,9 @@ class Database
             //Send email
             $mail->send();
             return "success";
-            
         } catch (Exception $e) {
             return 'Verification mail could not be sent. Try again later.';
         }
-
     }
 
     // Verifies 2fa code.
@@ -260,6 +278,20 @@ class Database
         if (empty($valid)) {
             return "Invalid code";
         }
+
+        // Check if the qr code has been scanned.
+        $exec = $this->db->prepare("SELECT twofa_scanned FROM users WHERE username = :user;");
+        $exec->bindParam(':user', $username, PDO::PARAM_STR);
+        $exec->execute();
+
+        if ($exec->fetchAll(PDO::FETCH_ASSOC)[0]['twofa_scanned'] == 0) {
+
+            // Set twofa_scanned to 1 if the code is right.
+            $exec = $this->db->prepare("UPDATE users SET twofa_scanned = 1 WHERE username = :user;");
+            $exec->bindParam(':user', $username, PDO::PARAM_STR);
+            $exec->execute();
+        }
+
         $_SESSION['user'] = $username;
         return "success";
     }
@@ -274,11 +306,6 @@ class Database
         if (count($r) == 0) {
             return "User does not exist";
         }
-
-        // Set twofa_scanned to 1.
-        $exec = $this->db->prepare("UPDATE users SET twofa_scanned = 1 WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
         
         return $r[0]['twofa_image'];
     }
