@@ -34,6 +34,20 @@ class Database
         }
     }
 
+    // Get value from database.
+    public function getValue($return, $param, $value)
+    {
+        $r = $this->db->prepare("SELECT $return FROM users WHERE $param = :v;");
+        $r->bindParam(':v', $value);
+        $r->execute();
+        
+        if (count($r->fetchAll(PDO::FETCH_ASSOC)) == 0) {
+            return false;
+        }
+        
+        return $r->fetchAll(PDO::FETCH_ASSOC)[0][$return];
+    }
+
     // Adds a user to the database. (sign up)
     public function addUser($username, $password, $email)
     {
@@ -50,10 +64,7 @@ class Database
         }
         
         // Check if email is taken.
-        $r = $this->db->prepare("SELECT id FROM users WHERE email = :email;");
-        $r->bindParam(':email', $email, PDO::PARAM_STR);
-        $r->execute();
-        if (count($r->fetchAll(PDO::FETCH_ASSOC)) != 0) {
+        if ($this->getValue('id', 'email', $email) !== false) {
             return "Email is already used";
         }
 
@@ -134,46 +145,35 @@ class Database
     // Check if user exists in the database.
     public function UserExists($username)
     {
-        $exec = $this->db->prepare("SELECT id FROM users WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
-        $r = $exec->fetchAll(PDO::FETCH_ASSOC);
-        if (count($r) == 0) {
+        if ($this->getValue('id', 'username', $username) === false) {
             return false;
         }
 
         return true;
     }
 
-    // Checks if the user is verified.
+    // Checks if the email is verified.
     public function checkVerified($username)
     {
-        $exec = $this->db->prepare("SELECT verified FROM users WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
-        $verified = $exec->fetchAll(PDO::FETCH_ASSOC)[0]['verified'];
+        $verified = $this->getValue('verified', 'username', $username);
+
         if ($verified == 0) {
             return "Email is not verified, please verify your email first";
         }
+
         return "success";
     }
 
-    // Verifies the user.
+    // Verifies the email with the token.
     public function verifyUser($username, $token)
     {
         // Check if user exists.
-        $r = $this->db->prepare("SELECT id FROM users WHERE username = :user;");
-        $r->bindParam(':user', $username, PDO::PARAM_STR);
-        $r->execute();
-        if (count($r->fetchAll(PDO::FETCH_ASSOC)) == 0) {
+        if ($this->UserExists($username) === false) {
             return "User does not exist";
         }
         
         // Check if token is correct.
-        $exec = $this->db->prepare("SELECT verify_token FROM users WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
-        $verify_token = $exec->fetchAll(PDO::FETCH_ASSOC)[0]['verify_token'];
+        $verify_token = $this->getValue('verify_token', 'username', $username);
         if ($verify_token != $token) {
             return "Invalid token";
         }
@@ -181,6 +181,7 @@ class Database
         $exec = $this->db->prepare("UPDATE users SET verified = 1 WHERE username = :user;");
         $exec->bindParam(':user', $username, PDO::PARAM_STR);
         $exec->execute();
+        
         return "success";
     }
 
@@ -263,15 +264,10 @@ class Database
     // Verifies 2fa code.
     public function verify2faCode($username, $code)
     {
-        $exec = $this->db->prepare("SELECT twofa_secret FROM users WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
-        $r = $exec->fetchAll(PDO::FETCH_ASSOC);
-        if (count($r) == 0) {
+        $secret = $this->getValue('twofa_secret', 'username', $username);
+        if ($secret === false) {
             return "User does not exist";
         }
-
-        $secret = $r[0]['twofa_secret'];
 
         $tfa = new TwoFactorAuth('Chats!');
         $valid = $tfa->verifycode($secret, $code);
@@ -280,11 +276,8 @@ class Database
         }
 
         // Check if the qr code has been scanned.
-        $exec = $this->db->prepare("SELECT twofa_scanned FROM users WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
-
-        if ($exec->fetchAll(PDO::FETCH_ASSOC)[0]['twofa_scanned'] == 0) {
+        $scanned = $this->checkQrScanned($username);
+        if (!$scanned) {
 
             // Set twofa_scanned to 1 if the code is right.
             $exec = $this->db->prepare("UPDATE users SET twofa_scanned = 1 WHERE username = :user;");
@@ -299,25 +292,19 @@ class Database
     // Returns 2fa image.
     public function get2faImage($username)
     {
-        $exec = $this->db->prepare("SELECT twofa_image FROM users WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
-        $r = $exec->fetchAll(PDO::FETCH_ASSOC);
-        if (count($r) == 0) {
+        $exec = $this->getValue('twofa_image', 'username', $username);
+        if ($exec === false) {
             return "User does not exist";
         }
         
-        return $r[0]['twofa_image'];
+        return $exec;
     }
 
     // Checks if qr has already been scanned.
     public function checkQrScanned($username)
     {
-        $exec = $this->db->prepare("SELECT twofa_scanned FROM users WHERE username = :user;");
-        $exec->bindParam(':user', $username, PDO::PARAM_STR);
-        $exec->execute();
-        $r = $exec->fetchAll(PDO::FETCH_ASSOC);
-        if ($r[0]['twofa_scanned'] == 0) {
+        $exec = $this->getValue('twofa_scanned', 'username', $username);
+        if ($exec === 0) {
             return false;
         }
 
