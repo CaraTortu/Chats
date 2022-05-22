@@ -227,7 +227,7 @@ class UrlHandler
                 } else {
                     return $this->returnError(401);
                 }
-                // no break
+                break;
             default:
                 // Return 404 for all other requests.
                 return $this->returnError(404);
