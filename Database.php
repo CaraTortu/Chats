@@ -40,12 +40,14 @@ class Database
         $r = $this->db->prepare("SELECT $return FROM users WHERE $param = :v;");
         $r->bindParam(':v', $value);
         $r->execute();
+        $r = $r->fetchAll(PDO::FETCH_ASSOC);
         
-        if (count($r->fetchAll(PDO::FETCH_ASSOC)) == 0) {
+        if (count($r) == 0) {
             return false;
         }
         
-        return $r->fetchAll(PDO::FETCH_ASSOC)[0][$return];
+        // Return value.
+        return $r[0][$return];
     }
 
     // Adds a user to the database. (sign up)
